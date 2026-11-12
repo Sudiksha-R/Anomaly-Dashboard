@@ -1,0 +1,8 @@
+data/*.duckdb
+.python_deps/
+frontend/dist/
+frontend/node_modules/
+*.log
+*.pid
+*.tsbuildinfo
+__pycache__/
