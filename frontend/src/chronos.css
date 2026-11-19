@@ -6,3 +6,26 @@
 .chronos-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }.chronos-stats div { background: #f1f7f4; padding: 16px; border-radius: 8px; }.chronos-stats strong { display: block; font-size: 25px; }.chronos-stats span { display: block; font-size: 13px; margin-top: 6px; }
 .chronos-chart { height: 430px; min-width: 0; }.chronos-caption { font-size: 13px; color: #566860; }.chronos-table-wrap { overflow-x: auto; }.chronos-view table { width: 100%; border-collapse: collapse; min-width: 750px; }.chronos-view th,.chronos-view td { padding: 12px 9px; text-align: left; border-bottom: 1px solid #dce3e0; }.chronos-view th { font-size: 12px; }.chronos-view tr.selected { background: #fff1f2; }.chronos-view button { padding: 7px 12px; border: 1px solid #8ca99c; border-radius: 5px; background: #f1f7f4; cursor: pointer; }.chronos-view details { margin-top: 24px; }.chronos-view summary { cursor: pointer; font-weight: 600; }
 @media(max-width:700px) { .chronos-view { padding: 12px; }.chronos-stats { grid-template-columns: repeat(2,1fr); }.chronos-chart { height: 360px; } }
+.chronos-controls label { min-width: 0; max-width: 100%; }
+.chronos-controls select { min-width: 0; max-width: 100%; width: 100%; }
+.chronos-heading p { overflow-wrap: anywhere; }
+
+.chronos-guide { margin: 18px 0 26px; padding: 18px; border: 1px solid #dce3e0; border-radius: 8px; background: #f8faf9; }
+.chronos-guide h3 { margin: 0; }
+.chronos-legend-definitions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 24px; }
+.chronos-legend-definitions dt { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.chronos-legend-definitions dd { margin: 6px 0 0 38px; line-height: 1.55; }
+.chronos-key { display: inline-block; width: 28px; flex: 0 0 28px; height: 0; border-top: 3px solid; }
+.chronos-key.observed { color: #475569; }.chronos-key.predicted { color: #00796b; }
+.chronos-key.threshold { color: #d97706; border-top-style: dashed; }
+.chronos-key.low { width: 10px; flex-basis: 10px; height: 10px; margin: 0 9px; border: 0; border-radius: 50%; background: #dc2626; }
+.chronos-key.interval { height: 16px; border: 1px solid #dc2626; background: #dc262622; }
+.chronos-key.trigger { width: 0; flex-basis: 0; height: 20px; margin: 0 13px; border-top: 0; border-left: 2px dotted #7c3aed; }
+.chronos-key.missing { height: 16px; border: 1px solid #64748b; background: #64748b26; }
+.chronos-term-definitions dt { margin-top: 14px; font-weight: 700; }.chronos-term-definitions dd { margin: 5px 0 0; line-height: 1.6; }
+@media(max-width:700px) { .chronos-guide { padding: 12px; }.chronos-legend-definitions { grid-template-columns: 1fr; } }
+.chronos-mode { display:flex; gap:10px; margin-top:24px; padding:12px 0; flex-wrap:wrap; }
+.chronos-mode button { padding:10px 14px; border:1px solid #8ca99c; border-radius:6px; background:white; color:#18332e; cursor:pointer; }
+.chronos-mode button[aria-pressed=true] { background:#1d5f4b; color:white; }
+.chronos-view button:disabled { opacity:.55; cursor:wait; }
+.chronos-trigger-note { margin: 8px 0 18px; color: #6d4ab0; }

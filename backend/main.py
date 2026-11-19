@@ -29,7 +29,7 @@ app = FastAPI(title="Bee Ridge Traffic Anomaly API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -678,3 +678,50 @@ def changepoints_endpoint(
             ],
         ).fetchdf()
     return {"items": records(frame), "count": len(frame)}
+
+
+@app.get('/api/chronos/runs')
+def chronos_runs():
+    from chronos_detector import STORE, connect
+    if not STORE.exists():
+        return {'runs': []}
+    with connect() as db:
+        return {'runs': [dict(r) for r in db.execute('SELECT id,signal,phase,start,end,status,clock FROM runs ORDER BY start DESC,id DESC')]}
+
+
+@app.get('/api/chronos/runs/{run_id}')
+def chronos_run(run_id: str):
+    from chronos_detector import STORE, snapshot
+    if not STORE.exists():
+        raise HTTPException(status_code=404, detail='No detector replay has been run yet.')
+    try:
+        return snapshot(run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail='Detector run not found.')
+
+
+@app.get('/api/chronos/options')
+def chronos_options(signal: str | None = None, phase: int | None = None, day: str | None = None):
+    from chronos_requests import available, worker_ready
+    try:
+        return {**available(signal,phase,day),'worker_ready':bool(worker_ready())}
+    except ValueError as e:
+        raise HTTPException(status_code=400,detail=str(e))
+
+
+@app.post('/api/chronos/predict',status_code=202)
+def chronos_predict(payload: dict):
+    from chronos_requests import submit
+    if set(payload)!={'signal','phase','day','hour'}:
+        raise HTTPException(status_code=400,detail='Specify signal, phase, day and one hour only.')
+    try:return submit(payload)
+    except (ValueError,TypeError) as e:raise HTTPException(status_code=400,detail=str(e))
+    except RuntimeError as e:raise HTTPException(status_code=503,detail=str(e))
+
+
+@app.get('/api/chronos/predict/{request_id}')
+def chronos_prediction_result(request_id: str):
+    from chronos_requests import result
+    try:return result(request_id)
+    except ValueError as e:raise HTTPException(status_code=400,detail=str(e))
+    except FileNotFoundError:raise HTTPException(status_code=404,detail='Prediction request not found.')

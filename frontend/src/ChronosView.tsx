@@ -1,66 +1,51 @@
-import { useEffect, useState } from "react";
-import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {useEffect,useState} from "react";
+import {CartesianGrid,Line,LineChart,ReferenceArea,ReferenceLine,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
+import ChronosReplayView from "./ChronosReplayView";
 import "./chronos.css";
-type Point = { day: string; origin: string; actual: number | null; prediction: number | null; lower_threshold: number | null; scored: boolean; low: boolean; input_available: boolean; event_id: number | null };
-type Event = { event_id: number; day: string; start: string; end: string; confirmed_at: string; duration_minutes: number; observed: number; expected: number; drop_percent: number | null };
-type Snapshot = { schema_version: number; model: string; signal_id: string; phase: number; dates: string[]; points: Point[]; events: Event[] };
-// Numeric chart coordinates preserve the source clock without browser timezone conversion.
-const coordinate = (value: string) => Date.parse(value.replace(" ", "T") + "Z");
-const clock = (value: number) => new Date(value).toISOString().slice(11, 16);
-const fmt = (n: number | null, digits = 1) => n == null ? "—" : n.toFixed(digits);
-export default function ChronosView() {
-  const [data, setData] = useState<Snapshot | null>(null);
-  const [day, setDay] = useState("");
-  const [selected, setSelected] = useState<number | null>(null);
-  const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController(); setError(""); setData(null);
-    fetch(`${import.meta.env.BASE_URL}chronos-review.json`, { signal: controller.signal })
-      .then(async response => { if (!response.ok) throw new Error("Saved Chronos results are unavailable."); return response.json(); })
-      .then((snapshot: Snapshot) => { if (snapshot.schema_version !== 1 || !Array.isArray(snapshot.points) || !snapshot.dates.length) throw new Error("Unsupported or empty Chronos snapshot."); setData(snapshot); setDay(snapshot.dates[0]); setSelected(null); })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason.message || "Could not load saved results."); });
-    return () => controller.abort();
-  }, [attempt]);
-  if (error) return <section className="chronos-view"><p role="alert">{error}</p><button onClick={() => setAttempt(attempt + 1)}>Retry</button></section>;
-  if (!data) return <section className="chronos-view" role="status">Loading saved Chronos predictions…</section>;
-  const points = data.points.filter(p => p.day === day).map(p => ({ ...p, time: coordinate(p.origin), candidate: p.low ? p.actual : null }));
-  const events = data.events.filter(e => e.day === day);
-  const scored = points.filter(p => p.scored).length;
-  const missingHistory = points.filter(p => !p.input_available).length;
-  const missingObservation = points.filter(p => p.input_available && !p.scored).length;
-  const start = coordinate(day + " 00:00:00");
-  const end = points.length ? points[points.length - 1].time + 300000 : start + 86400000;
-  return <section className="chronos-view">
-    <header className="chronos-heading"><div><h2>Chronos forecast review <span className="chronos-badge">Experimental</span></h2><p>Saved five-minute predictions · {data.model}</p></div></header>
-    <p className="chronos-notice">Candidate low-volume events, not confirmed incidents. This view is an offline replay; it does not run live inference. The existing anomaly methods are unchanged.</p>
-    <div className="chronos-controls">
-      <label>Intersection<select value={data.signal_id} disabled><option value={data.signal_id}>Signal {data.signal_id}</option></select></label>
-      <label>Phase<select value={data.phase} disabled><option value={data.phase}>Phase {data.phase}</option></select></label>
-      <label>Review date<select value={day} onChange={e => { setDay(e.target.value); setSelected(null); }}>{data.dates.map(d => <option key={d}>{d}</option>)}</select></label>
-      <span>Only saved coverage is selectable. No direction mapping is assumed.</span>
-    </div>
-    <div className="chronos-stats" aria-live="polite"><div><strong>{scored} / {points.length}</strong><span>Scored buckets</span></div><div><strong>{points.filter(p => p.low).length}</strong><span>Low-volume buckets</span></div><div><strong>{events.length}</strong><span>Persistent candidates</span></div><div><strong>{points.length - scored}</strong><span>Unscored buckets</span></div></div>
-    <p>Coverage: {day} {clock(start)}–{end - start === 86400000 ? "24:00" : clock(end)}{end - start === 86400000 ? " (full day)" : " (partial day)"}. {missingHistory} buckets lack complete input history; {missingObservation} lack an observed outcome. Unscored periods are not classified as normal.</p>
-    <div className="chronos-chart" role="img" aria-label={`Observed volume, predictions, lower threshold and candidate intervals for ${day}. ${events.length} persistent candidates.`}>
-      <ResponsiveContainer width="100%" height="100%"><LineChart data={points} margin={{ top: 18, right: 20, bottom: 20, left: 12 }}>
-        <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="time" type="number" domain={[start, end]} tickFormatter={clock} scale="time" /><YAxis width={48} /><Tooltip labelFormatter={v => `${day} ${clock(Number(v))} · source clock`} formatter={(v, name) => [typeof v === "number" ? fmt(v) : "Missing", name]} /><Legend />
-        {points.filter(p => !p.scored).map(p => <ReferenceArea key={p.time} x1={p.time} x2={p.time + 300000} fill="#64748b" fillOpacity={0.18} />)}
-        {events.map(e => <ReferenceArea key={e.event_id} x1={coordinate(e.start)} x2={coordinate(e.end)} fill="#dc2626" fillOpacity={selected === e.event_id ? 0.35 : 0.13} stroke={selected === e.event_id ? "#dc2626" : undefined} />)}
-        {events.map(e => <ReferenceLine key={e.event_id} x={coordinate(e.confirmed_at)} stroke="#7c3aed" strokeDasharray="3 3" />)}
-        <Line dataKey="actual" name="Observed" stroke="#475569" dot={false} connectNulls={false} isAnimationActive={false} />
-        <Line dataKey="prediction" name="Predicted" stroke="#00796b" dot={false} connectNulls={false} isAnimationActive={false} />
-        <Line dataKey="lower_threshold" name="Lower threshold" stroke="#d97706" strokeDasharray="5 4" dot={false} connectNulls={false} isAnimationActive={false} />
-        <Line dataKey="candidate" name="Low-volume bucket" stroke="none" dot={{ r: 3, fill: "#dc2626", stroke: "#dc2626" }} connectNulls={false} isAnimationActive={false} />
-      </LineChart></ResponsiveContainer>
-    </div>
-    <p className="chronos-caption">Volume units: detector activations per five-minute bucket. Red shading: candidate interval. Purple dotted line: earliest confirmation. Gray: unscored. Times use the source clock; timezone is unverified.</p>
-    <h3>Candidate events</h3>
-    <p>An event requires two consecutive low buckets (10 minutes); it is confirmed only when the second bucket closes. Select a row to highlight the interval.</p>
-    <div className="chronos-table-wrap"><table><thead><tr><th>Review</th><th>Start</th><th>End</th><th>Confirmed</th><th>Duration</th><th>Observed total</th><th>Predicted total</th><th>Drop vs prediction</th></tr></thead><tbody>
-      {events.map(e => <tr key={e.event_id} className={selected === e.event_id ? "selected" : ""}><td><button aria-pressed={selected === e.event_id} onClick={() => setSelected(selected === e.event_id ? null : e.event_id)}>Event {e.event_id}</button></td><td>{e.start.slice(11,16)}</td><td>{e.end.slice(11,16)}</td><td>{e.confirmed_at.slice(11,16)}</td><td>{e.duration_minutes} min</td><td>{fmt(e.observed,0)}</td><td>{fmt(e.expected)}</td><td>{fmt(e.drop_percent)}%</td></tr>)}
-      {!events.length && <tr><td colSpan={8}>No persistent candidates in this saved period. This does not rule out incidents or issues in unscored data.</td></tr>}
-    </tbody></table></div>
-    <details><summary>Model and alert rules</summary><p>Input: the preceding hour, matching slots from the previous three weeks, and one-hot hour/weekday indicators. The model predicts three buckets; this view uses the next bucket to avoid counting overlapping forecasts twice. Thresholds use the fifth percentile of five-minute validation residuals. Validation also informed model selection, so these thresholds are exploratory. Missing data breaks an event; missing counts are not filled with zero. May examples have already been inspected and do not establish independent detection accuracy.</p></details>
-  </section>;
+const base=(import.meta.env.VITE_ANOMALY_API_BASE_URL??"").replace(/\/$/,"");
+const coord=(s:string)=>Date.parse(s.replace(" ","T")+"Z");
+const clock=(n:number)=>new Date(n).toISOString().slice(11,16);
+type Series={signal:string;phase:number};
+type Hour={hour:number;available:boolean;observations:number};
+type Point={time:string;prediction:number;actual:number|null;lower_threshold:number;low:boolean;scored:boolean};
+type Result={signal:string;phase:number;start:string;origin:string;history:number[];weekly_available:number[];warnings:string[];points:Point[];events:{start:string;triggered_at:string;end:string;status:string}[]};
+async function api(path:string,options?:RequestInit){const r=await fetch(base+path,options);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:'Request failed');return j;}
+export default function ChronosView(){
+ const [mode,setMode]=useState('predict');const [series,setSeries]=useState<Series[]>([]);const [signal,setSignal]=useState('');const [phase,setPhase]=useState(2);const [dates,setDates]=useState<string[]>([]);const [day,setDay]=useState('');const [hours,setHours]=useState<Hour[]>([]);const [hour,setHour]=useState(-1);const [error,setError]=useState('');const [status,setStatus]=useState('');const [request,setRequest]=useState('');const [result,setResult]=useState<Result|null>(null);const [cached,setCached]=useState(false);
+ useEffect(()=>{api('/api/chronos/options').then(r=>{setSeries(r.series);setSignal(r.series[0]?.signal??'');setPhase(r.series[0]?.phase??2);}).catch(e=>setError(e.message));},[]);
+ useEffect(()=>{if(!signal)return;let active=true;setDates([]);setDay('');setHours([]);setHour(-1);api('/api/chronos/options?'+new URLSearchParams({signal,phase:String(phase)})).then(r=>{if(active){setDates(r.dates);setDay(r.dates[r.dates.length-1]??'');}}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[signal,phase]);
+ useEffect(()=>{if(!signal||!day)return;let active=true;setHours([]);setHour(-1);api('/api/chronos/options?'+new URLSearchParams({signal,phase:String(phase),day})).then(r=>{if(active){setHours(r.hours);setHour(r.hours.find((h:Hour)=>h.available)?.hour??-1)}}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[signal,phase,day]);
+ useEffect(()=>{setResult(null);setRequest('');setStatus('');setError('');},[signal,phase,day,hour]);
+ useEffect(()=>{if(!request)return;let active=true;let timer:number;const poll=async()=>{try{const r=await api('/api/chronos/predict/'+request);if(!active)return;setStatus(r.status);if(r.status==='complete'){setResult(r.result);return}if(r.status==='failed'){setError(r.error||'Model request failed');return}if(!r.worker_ready)setError('The model worker is offline. This request will resume when the worker restarts.');timer=window.setTimeout(poll,2000)}catch(e){if(active){setError(e instanceof Error?e.message:'Request failed');setStatus('failed')}}};void poll();return()=>{active=false;window.clearTimeout(timer)}},[request]);
+ const run=async()=>{setError('');setResult(null);setStatus('submitting');setRequest('');try{const r=await api('/api/chronos/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signal,phase,day,hour})});setCached(r.cached);setStatus(r.status);setRequest(r.id);}catch(e){setError(e instanceof Error?e.message:'Prediction failed');setStatus('failed')}};
+ const busy=['submitting','queued','running'].includes(status);
+ const phases=[...new Set(series.filter(s=>s.signal===signal).map(s=>s.phase))];
+ const origin=result?coord(result.origin):0;
+ const plot=result?[...result.history.map((v,i)=>({time:coord(result.start)+i*300000,history:v,actual:null as number|null,prediction:null as number|null,lower:null as number|null,low:null as number|null})),...result.points.map(p=>({time:coord(p.time),history:null as number|null,actual:p.actual,prediction:p.prediction,lower:p.lower_threshold,low:p.low?p.actual:null}))]:[];
+ return <><div className="chronos-mode"><button aria-pressed={mode==='predict'} onClick={()=>setMode('predict')}>One-hour prediction</button><button aria-pressed={mode==='replay'} onClick={()=>setMode('replay')}>Saved replay review</button></div>{mode==='replay'?<ChronosReplayView/>:<section className="chronos-view">
+ <h2>Chronos · Predict the next 15 minutes</h2><p>Select one complete hour of historical traffic for one intersection and phase. Chronos predicts the next three five-minute intervals.</p>
+ <div className="chronos-controls"><label>Intersection<select value={signal} disabled={busy} onChange={e=>{setSignal(e.target.value);setPhase(series.find(s=>s.signal===e.target.value)?.phase??2)}}>{[...new Set(series.map(s=>s.signal))].map(s=><option key={s} value={s}>Signal {s}</option>)}</select></label>
+ <label>Phase<select value={phase} disabled={busy} onChange={e=>setPhase(Number(e.target.value))}>{phases.map(p=><option key={p} value={p}>Phase {p}</option>)}</select></label>
+ <label>Date<select value={day} disabled={busy||!dates.length} onChange={e=>setDay(e.target.value)}>{dates.map(d=><option key={d}>{d}</option>)}</select></label>
+ <label>Input hour<select value={hour} disabled={busy||!hours.length} onChange={e=>setHour(Number(e.target.value))}>{hour<0&&<option value={-1}>No complete hour available</option>}{hours.map(h=><option key={h.hour} value={h.hour} disabled={!h.available}>{String(h.hour).padStart(2,'0')}:00–{String(h.hour+1).padStart(2,'0')}:00{h.available?'':' · incomplete history'}</option>)}</select></label>
+ <button disabled={busy||hour<0} onClick={run}>{busy?'Processing…':'Run prediction'}</button></div>
+ <p className="chronos-caption">Input: 12 five-minute counts, matching slots from the previous three weeks, and hour/weekday indicators. Future observed counts are never model inputs. Times use the source clock; direction and timezone mapping are unverified.</p>
+ {error&&<p role="alert" className="chronos-notice">{error}</p>}{busy&&<p role="status">{status==='submitting'?'Submitting request':status==='queued'?'Waiting for the model worker':'Chronos is generating predictions'}… Other tabs remain available.</p>}
+ {result&&<><h3>Signal {result.signal} · Phase {result.phase} · Input {result.start.slice(0,16)}–{clock(origin)} · Forecast {clock(origin)}–{clock(origin+900000)}</h3>
+ <p>{cached?'Reused the identical saved prediction.':'Prediction completed.'} {result.points.filter(p=>p.scored).length}/3 future intervals have observed counts for scoring. {result.events.length} candidate event(s).</p>
+ {result.warnings.map(w=><p key={w} className="chronos-notice">{w}</p>)}
+ <p className="chronos-caption">Previous-week values available: {result.weekly_available.map((n,i)=>`week ${i+1}: ${n}/15`).join(' · ')}.</p>
+ <div className="chronos-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={plot}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="time" type="number" domain={[coord(result.start),origin+900000]} tickFormatter={clock}/><YAxis/><Tooltip labelFormatter={v=>clock(Number(v))}/>
+ <ReferenceArea x1={origin} x2={origin+900000} fill="#00796b" fillOpacity={0.06}/><ReferenceLine x={origin} stroke="#334155" strokeDasharray="4 4" label="Forecast starts"/>
+ {result.points.filter(p=>!p.scored).map(p=><ReferenceArea key={p.time} x1={coord(p.time)} x2={coord(p.time)+300000} fill="#64748b" fillOpacity={0.18}/>)}
+ {result.events.map(e=><ReferenceArea key={e.start} x1={coord(e.start)} x2={coord(e.end)} fill="#dc2626" fillOpacity={0.15}/>)}
+ {result.events.map(e=><ReferenceLine key={e.start} x={coord(e.triggered_at)} stroke="#7c3aed" strokeWidth={2} strokeDasharray="3 3" label={{value:"Alert triggered",position:"insideTopRight",fill:"#7c3aed",fontSize:11}}/>)}
+ <Line dataKey="history" name="Input history" stroke="#475569" dot={{r:3}} isAnimationActive={false}/><Line dataKey="actual" name="Future observed" stroke="#475569" dot={{r:4}} isAnimationActive={false}/><Line dataKey="prediction" name="Predicted" stroke="#00796b" dot={{r:4}} isAnimationActive={false}/><Line dataKey="lower" name="Lower threshold" stroke="#d97706" strokeDasharray="5 4" dot={false} isAnimationActive={false}/><Line dataKey="low" name="Low-volume interval" stroke="none" dot={{r:5,fill:'#dc2626',stroke:'#dc2626'}} isAnimationActive={false}/>
+ </LineChart></ResponsiveContainer></div>
+ {!result.events.length&&<p className="chronos-caption chronos-trigger-note">No purple alert-trigger line is shown because this prediction did not produce a candidate event.</p>}
+ <div className="chronos-table-wrap"><table><thead><tr><th>Forecast interval</th><th>Predicted</th><th>Observed</th><th>Lower threshold</th><th>Assessment</th></tr></thead><tbody>{result.points.map(p=><tr key={p.time}><td>{clock(coord(p.time))}–{clock(coord(p.time)+300000)}</td><td>{p.prediction.toFixed(1)}</td><td>{p.actual??'Unavailable'}</td><td>{p.lower_threshold.toFixed(1)}</td><td>{!p.scored?'Unscored':p.low?'Low volume':'Not below threshold'}</td></tr>)}</tbody></table></div>
+ <h3>Candidate events</h3>{result.events.length?result.events.map(e=><p key={e.start}>Begins {clock(coord(e.start))}; alert rule met at {clock(coord(e.triggered_at))}. {e.status}. This is not a confirmed incident.</p>):<p>No two consecutive low-volume intervals detected in this forecast window. Missing outcomes cannot be assessed.</p>}
+ </>}
+ <section className="chronos-guide"><h3>How to read the plot</h3><dl className="chronos-legend-definitions"><div><dt><span className="chronos-key observed"/>Gray line and dots</dt><dd>Actual detector activations per five-minute interval. Left of the divider is the input hour; right of it are future observations used only for scoring.</dd></div><div><dt><span className="chronos-key predicted"/>Green line</dt><dd>The three model predictions. The lightly shaded forecast region is 15 minutes long.</dd></div><div><dt><span className="chronos-key threshold"/>Orange dashed line</dt><dd>Lower cutoff: prediction plus the validation-error fifth percentile for that horizon, floored at zero. Falling below the prediction alone does not trigger a flag.</dd></div><div><dt><span className="chronos-key low"/>Red dot</dt><dd>One observed count below its lower cutoff. Two consecutive red dots trigger a candidate event.</dd></div><div><dt><span className="chronos-key interval"/>Red shading</dt><dd>The candidate-event interval, beginning with the first of two consecutive low buckets.</dd></div><div><dt><span className="chronos-key trigger"/>Purple dotted line</dt><dd>The time the second consecutive low bucket closed and the alert rule was met. It appears only when a candidate event is detected.</dd></div><div><dt><span className="chronos-key missing"/>Gray shading</dt><dd>No future observation is available. A forecast is still shown, but this interval is not classified as normal or anomalous.</dd></div></dl><p className="chronos-caption">Counts are detector activations, not guaranteed unique vehicles. Thresholds are exploratory, not a guaranteed false-alarm rate. Historical training/validation dates may be selected but are labelled; they are not independent tests.</p></section>
+ </section>}</>;
 }

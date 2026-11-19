@@ -93,3 +93,9 @@ python3 anomaly-dashboard/scripts/export_chronos_snapshot.py
 ```
 
 The exporter currently targets the reviewed signal/phase; expanding coverage requires extending the snapshot schema/exporter and selectors rather than relabeling this data. Build with `npm run build` in `anomaly-dashboard/frontend`. Start the existing dashboard using `bash anomaly-dashboard/scripts/restart.sh` from the repository root, then select the new tab. Static snapshot delivery also works from a production Vite build, with no new Python dependencies. This change does not deploy to the remote VM.
+
+### Chronos detector (November 2026 update)
+
+The Chronos tab now uses the API-backed neural detector rather than the earlier
+static snapshot. See [CHRONOS_DETECTOR.md](CHRONOS_DETECTOR.md) for replay commands,
+alert and recovery rules, data-leakage boundaries, and remaining live-feed work.
