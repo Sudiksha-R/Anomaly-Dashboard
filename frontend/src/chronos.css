@@ -24,8 +24,9 @@
 .chronos-key.missing { height: 16px; border: 1px solid #64748b; background: #64748b26; }
 .chronos-term-definitions dt { margin-top: 14px; font-weight: 700; }.chronos-term-definitions dd { margin: 5px 0 0; line-height: 1.6; }
 @media(max-width:700px) { .chronos-guide { padding: 12px; }.chronos-legend-definitions { grid-template-columns: 1fr; } }
-.chronos-mode { display:flex; gap:10px; margin-top:24px; padding:12px 0; flex-wrap:wrap; }
+.chronos-mode { display:flex; gap:10px; padding:12px 22px; flex-wrap:wrap; }
 .chronos-mode button { padding:10px 14px; border:1px solid #8ca99c; border-radius:6px; background:white; color:#18332e; cursor:pointer; }
 .chronos-mode button[aria-pressed=true] { background:#1d5f4b; color:white; }
 .chronos-view button:disabled { opacity:.55; cursor:wait; }
 .chronos-trigger-note { margin: 8px 0 18px; color: #6d4ab0; }
+@media(max-width:700px) { .chronos-mode { padding-inline:12px; } }
